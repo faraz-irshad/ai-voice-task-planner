@@ -5,8 +5,6 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-# ------------ GEMINI CLIENT + TRANSCRIPTION ------------
-
 @st.cache_resource
 def get_gemini_client():
     api_key = None
