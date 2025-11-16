@@ -43,6 +43,55 @@ def transcribe_audio_with_gemini(uploaded_file):
 
     return (response.text or "").strip()
 
+def extract_tasks_with_gemini(transcript: str) -> list[str]:
+    """
+    Take a raw transcript and return a list of clear, actionable tasks.
+    """
+    client = get_gemini_client()
+
+    prompt = f"""
+You will receive a transcript of a person's voice note about their day and plans.
+
+Your job: extract ONLY clear, actionable tasks.
+
+Rules:
+- Each task should start with a verb (e.g. "Email the professor", "Buy groceries").
+- Ignore vague feelings and complaints (e.g. "I'm tired", "I'm stressed").
+- Ignore dreams or very hypothetical ideas ("Someday I might move to Japan").
+- Use short, simple English.
+- Do NOT number the tasks.
+
+Transcript:
+\"\"\"{transcript}\"\"\"
+
+Output format (strict):
+Write one task per line, and start each line with "- ".
+Example:
+- Email the database professor about the assignment deadline
+- Buy milk and eggs
+- Clean the kitchen
+"""
+
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=[prompt],
+    )
+
+    raw = (response.text or "").strip()
+    tasks: list[str] = []
+
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line[0] in ["-", "•"]:
+            task = line[1:].strip()
+        else:
+            task = line
+        if task:
+            tasks.append(task)
+
+    return tasks
 
 st.set_page_config(
     page_title="AI Voice Task Planner",
@@ -117,11 +166,18 @@ if extract_clicked:
     if not st.session_state.transcript.strip():
         st.warning("Transcript is empty. Transcribe or type something first.")
     else:
-        st.session_state.tasks = [
-            "TODO: Extract tasks using AI.",
-            "This is a placeholder task.",
-        ]
-        st.success("Tasks extracted (placeholder).")
+        try:
+            with st.spinner("Extracting tasks from transcript…"):
+                tasks = extract_tasks_with_gemini(st.session_state.transcript)
+
+            if not tasks:
+                st.error("No clear tasks found in this text. Try speaking more concretely.")
+            else:
+                st.session_state.tasks = tasks
+                st.success(f"Found {len(tasks)} task(s). Scroll down to see the list.")
+        except Exception as e:
+            st.error(f"Task extraction failed: {e}")
+
 
 if plan_clicked:
     if not st.session_state.tasks:
