@@ -93,6 +93,96 @@ Example:
 
     return tasks
 
+# ------------ FOR PLANNING 
+
+def categorize_and_prioritize_tasks_with_gemini(tasks: list[str]) -> list[dict]:
+    client = get_gemini_client()
+
+    tasks_block = "\n".join(f"- {t}" for t in tasks)
+
+    prompt = f"""
+You will receive a list of TODO tasks.
+
+For EACH task, you must:
+1. Assign ONE category from this list:
+   [Work, Study, Errand, Personal, Health, Finance, Other]
+
+2. Assign ONE priority using the Eisenhower Matrix:
+   - Urgent & Important
+   - Urgent & Not Important
+   - Important & Not Urgent
+   - Not Urgent & Not Important
+
+Think like a normal busy student/young professional.
+
+Input tasks:
+{tasks_block}
+
+Output format (strict):
+One line per task, in this exact format:
+<task> || <category> || <priority>
+
+Example:
+Email the database professor about the assignment || Study || Important & Not Urgent
+Buy groceries for dinner || Errand || Urgent & Not Important
+"""
+
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=[prompt],
+    )
+
+    raw = (response.text or "").strip()
+    results: list[dict] = []
+
+    for line in raw.splitlines():
+        if "||" not in line:
+            continue
+        parts = [p.strip() for p in line.split("||")]
+        if len(parts) != 3:
+            continue
+        task_text, category, priority = parts
+        if not task_text:
+            continue
+        results.append(
+            {
+                "task": task_text,
+                "category": category,
+                "priority": priority,
+            }
+        )
+
+    return results
+
+
+def build_schedule(prioritized_tasks: list[dict]) -> dict:
+
+    today: list[dict] = []
+    tomorrow: list[dict] = []
+    later: list[dict] = []
+
+    for item in prioritized_tasks:
+        p = (item.get("priority") or "").strip().lower()
+
+        if p == "urgent & important":
+            today.append(item)
+        elif p == "urgent & not important":
+            today.append(item)
+        elif p == "important & not urgent":
+            tomorrow.append(item)
+        elif p == "not urgent & not important":
+            later.append(item)
+
+    print(f"Today : {today}")
+    print(f"Tmrw : {tomorrow}")
+    print(f"Later : {later}")
+
+    return {
+        "today": today,
+        "tomorrow": tomorrow,
+        "later": later,
+    }
+
 st.set_page_config(
     page_title="AI Voice Task Planner",
     page_icon="🎙️",
@@ -183,16 +273,19 @@ if plan_clicked:
     if not st.session_state.tasks:
         st.warning("No tasks found yet. Extract tasks first.")
     else:
-        st.session_state.prioritized_tasks = [
-            {"task": t, "category": "General", "priority": "Urgent & Important"}
-            for t in st.session_state.tasks
-        ]
-        st.session_state.schedule = {
-            "today": st.session_state.prioritized_tasks,
-            "tomorrow": [],
-            "later": [],
-        }
-        st.success("Plan generated (placeholder).")
+        try:
+            with st.spinner("Categorizing and prioritizing tasks…"):
+                prioritized = categorize_and_prioritize_tasks_with_gemini(st.session_state.tasks)
+                schedule = build_schedule(prioritized)
+
+            if not prioritized:
+                st.error("Planning failed – I couldn't parse any tasks. Try extracting again.")
+            else:
+                st.session_state.prioritized_tasks = prioritized
+                st.session_state.schedule = schedule
+                st.success("Plan generated. Scroll down to see the matrix and day split.")
+        except Exception as e:
+            st.error(f"Planning failed: {e}")
 
 st.markdown("---")
 
