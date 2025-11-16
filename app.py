@@ -1,4 +1,50 @@
+import os
+
 import streamlit as st
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+
+# ------------ GEMINI CLIENT + TRANSCRIPTION ------------
+
+@st.cache_resource
+def get_gemini_client():
+    api_key = None
+
+    try:
+        api_key = st.secrets.get("GEMINI_API_KEY", None)
+    except Exception:
+        api_key = None
+
+    if not api_key:
+        load_dotenv()
+        api_key = os.getenv("GEMINI_API_KEY")
+
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY not found in st.secrets or .env")
+
+    return genai.Client(api_key=api_key)
+
+
+def transcribe_audio_with_gemini(uploaded_file):
+    client = get_gemini_client()
+
+    audio_bytes = uploaded_file.read()
+    mime_type = uploaded_file.type or "audio/mp3"
+
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=[
+            (
+                "Transcribe this voice memo into clear, punctuated English. "
+                "Keep it faithful to what is said. Don't summarize, don't invent anything."
+            ),
+            types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+        ],
+    )
+
+    return (response.text or "").strip()
+
 
 st.set_page_config(
     page_title="AI Voice Task Planner",
@@ -20,7 +66,6 @@ if "schedule" not in st.session_state:
 
 st.title("🎙 AI Voice Task Planner")
 st.caption("Say everything you need to do. Get back a calm, prioritized list.")
-
 st.markdown("---")
 
 col1, col2 = st.columns(2)
@@ -45,6 +90,22 @@ with col2:
         height=200,
     )
 
+if transcribe_clicked:
+    if audio_file is None:
+        st.warning("Please upload an audio file first.")
+    else:
+        try:
+            with st.spinner("Transcribing audio with Gemini…"):
+                transcript = transcribe_audio_with_gemini(audio_file)
+
+            if not transcript:
+                st.error("Gemini returned an empty transcript. Try a clearer recording.")
+            else:
+                st.session_state.transcript = transcript
+                st.success("Transcription complete. You can edit the text before extracting tasks.")
+        except Exception as e:
+            st.error(f"Transcription failed: {e}")
+
 st.markdown("---")
 
 st.subheader("3️⃣ Tasks & plan")
@@ -54,32 +115,20 @@ with c1:
 with c2:
     plan_clicked = st.button("📊 Prioritize & build plan", use_container_width=True)
 
-
-if transcribe_clicked:
-    if audio_file is None:
-        st.warning("Please upload an audio file first.")
-    else:
-        # whisper text to speech
-        st.session_state.transcript = (
-            "Nothing here\n\n"
-        )
-        st.success("Transcription.")
-
 if extract_clicked:
     if not st.session_state.transcript.strip():
         st.warning("Transcript is empty. Transcribe or type something first.")
     else:
-        # task extraction with LLM
         st.session_state.tasks = [
-            "Nothing here",
+            "TODO: Extract tasks using AI.",
+            "This is a placeholder task.",
         ]
-        st.success("Tasks extracted.")
+        st.success("Tasks extracted (placeholder).")
 
 if plan_clicked:
     if not st.session_state.tasks:
         st.warning("No tasks found yet. Extract tasks first.")
     else:
-        # categorization + prioritization + scheduling
         st.session_state.prioritized_tasks = [
             {"task": t, "category": "General", "priority": "Urgent & Important"}
             for t in st.session_state.tasks
@@ -89,7 +138,7 @@ if plan_clicked:
             "tomorrow": [],
             "later": [],
         }
-        st.success("Plan generated.")
+        st.success("Plan generated (placeholder).")
 
 st.markdown("---")
 
@@ -99,7 +148,6 @@ if st.session_state.tasks:
         st.markdown(f"- {t}")
 else:
     st.caption("No tasks yet. Start by transcribing and extracting.")
-
 st.markdown("---")
 
 st.subheader("5️⃣ Eisenhower matrix")
