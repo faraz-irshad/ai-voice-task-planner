@@ -1,131 +1,97 @@
-from google.genai import types
+from google.api_core import exceptions as google_exceptions
 
-from .gemini_client import get_gemini_client
-
-
-def transcribe_audio_with_gemini(uploaded_file):
-    client = get_gemini_client()
-
-    audio_bytes = uploaded_file.read()
-    mime_type = uploaded_file.type or "audio/mp3"
-
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=[
-            (
-                "Transcribe this voice memo into clear, punctuated English. "
-                "Keep it faithful to what is said. Don't summarize, don't invent anything."
-            ),
-            types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
-        ],
-    )
-
-    return (response.text or "").strip()
+from core.gemini_client import get_client
 
 
-def extract_tasks_with_gemini(transcript: str) -> list[str]:
-    client = get_gemini_client()
+class GeminiQuotaError(Exception):
+    """Raised when the Gemini API reports quota exhaustion."""
 
-    prompt = f"""
-You will receive a transcript of a person's voice note about their day and plans.
 
-Your job: extract ONLY clear, actionable tasks.
+class GeminiClientError(Exception):
+    """Raised for other Gemini API failures."""
 
+
+def _call_model(model, parts):
+    try:
+        return model.generate_content(parts)
+    except google_exceptions.ResourceExhausted as exc:
+        raise GeminiQuotaError(
+            "Gemini quota exceeded. Please wait and retry or update your plan/billing."
+        ) from exc
+    except google_exceptions.GoogleAPICallError as exc:
+        raise GeminiClientError("Gemini API call failed.") from exc
+    except Exception as exc:  # pragma: no cover - catch-all for SDK edge cases
+        raise GeminiClientError("Unexpected Gemini error.") from exc
+
+
+def transcribe_audio(audio_bytes, mime_type):
+    model = get_client()
+    prompt = "Transcribe this audio to clean readable English text. No summarizing. Pure transcription only."
+    response = _call_model(model, [prompt, {"mime_type": mime_type, "data": audio_bytes}])
+    return response.text.strip()
+
+
+def extract_tasks(transcript):
+    model = get_client()
+    prompt = f"""Extract actionable tasks from this transcript.
 Rules:
-- Each task should start with a verb (e.g. "Email the professor", "Buy groceries").
-- Ignore vague feelings and complaints (e.g. "I'm tired", "I'm stressed").
-- Ignore dreams or very hypothetical ideas ("Someday I might move to Japan").
-- Use short, simple English.
-- Do NOT number the tasks.
+- Start with a verb
+- Short
+- No feelings
+- No summaries
+- No filler
+Output each task on its own line.
 
 Transcript:
-\"\"\"{transcript}\"\"\"
-
-Output format (strict):
-Write one task per line, and start each line with "- ".
-Example:
-- Email the database professor about the assignment deadline
-- Buy milk and eggs
-- Clean the kitchen
-"""
-
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=[prompt],
-    )
-
-    raw = (response.text or "").strip()
-    tasks: list[str] = []
-
-    for line in raw.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        if line[0] in ["-", "•"]:
-            task = line[1:].strip()
-        else:
-            task = line
-        if task:
-            tasks.append(task)
-
+{transcript}"""
+    response = _call_model(model, prompt)
+    tasks = [t.strip() for t in response.text.strip().split("\n") if t.strip()]
     return tasks
 
 
-def categorize_and_prioritize_tasks_with_gemini(tasks: list[str]) -> list[dict]:
-    client = get_gemini_client()
+def categorize_and_prioritize(tasks):
+    model = get_client()
+    task_list = "\n".join([f"{i+1}. {t}" for i, t in enumerate(tasks)])
+    prompt = f"""For each task, assign category and priority.
 
-    tasks_block = "\n".join(f"- {t}" for t in tasks)
+Categories: Work, Study, Errand, Personal, Health, Finance, Other
+Priorities: Urgent & Important, Urgent & Not Important, Important & Not Urgent, Not Urgent & Not Important
 
-    prompt = f"""
-You will receive a list of TODO tasks.
-
-For EACH task, you must:
-1. Assign ONE category from this list:
-   [Work, Study, Errand, Personal, Health, Finance, Other]
-
-2. Assign ONE priority using the Eisenhower Matrix:
-   - Urgent & Important
-   - Urgent & Not Important
-   - Important & Not Urgent
-   - Not Urgent & Not Important
-
-Think like a normal busy student/young professional.
-
-Input tasks:
-{tasks_block}
-
-Output format (strict):
-One line per task, in this exact format:
+Output format (one per line):
 <task> || <category> || <priority>
 
-Example:
-Email the database professor about the assignment || Study || Important & Not Urgent
-Buy groceries for dinner || Errand || Urgent & Not Important
-"""
-
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=[prompt],
-    )
-
-    raw = (response.text or "").strip()
-    results: list[dict] = []
-
-    for line in raw.splitlines():
-        if "||" not in line:
-            continue
-        parts = [p.strip() for p in line.split("||")]
-        if len(parts) != 3:
-            continue
-        task_text, category, priority = parts
-        if not task_text:
-            continue
-        results.append(
-            {
-                "task": task_text,
-                "category": category,
-                "priority": priority,
-            }
-        )
-
+Tasks:
+{task_list}"""
+    response = _call_model(model, prompt)
+    results = []
+    for line in response.text.strip().split("\n"):
+        if "||" in line:
+            parts = [p.strip() for p in line.split("||")]
+            if len(parts) == 3:
+                results.append({"task": parts[0], "category": parts[1], "priority": parts[2]})
     return results
+
+
+def classify_cognitive_load(tasks):
+    model = get_client()
+    task_list = "\n".join([f"{i+1}. {t['task']}" for i, t in enumerate(tasks)])
+    prompt = f"""Classify each task as:
+- Deep Task (high cognitive load, requires uninterrupted attention)
+- Micro Task (quick, low cognitive load, 1-5 minutes)
+- Other
+
+Output format (one per line):
+<task> || <type>
+
+Tasks:
+{task_list}"""
+    response = _call_model(model, prompt)
+    for line in response.text.strip().split("\n"):
+        if "||" in line:
+            parts = [p.strip() for p in line.split("||")]
+            if len(parts) == 2:
+                for task in tasks:
+                    if task["task"] == parts[0]:
+                        task["type"] = parts[1]
+                        break
+    return tasks

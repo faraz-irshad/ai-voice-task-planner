@@ -1,26 +1,24 @@
-def build_schedule(prioritized_tasks: list[dict]) -> dict:
-    today: list[dict] = []
-    tomorrow: list[dict] = []
-    later: list[dict] = []
+def schedule_task(priority):
+    if priority in ["Urgent & Important", "Urgent & Not Important"]:
+        return "Today"
+    elif priority == "Important & Not Urgent":
+        return "Tomorrow"
+    else:
+        return "Later"
 
-    for item in prioritized_tasks:
-        p = (item.get("priority") or "").strip().lower()
-
-        if p == "urgent & important":
-            today.append(item)
-        elif p == "urgent & not important":
-            today.append(item)
-        elif p == "important & not urgent":
-            tomorrow.append(item)
-        elif p == "not urgent & not important":
-            later.append(item)
-
-    print(f"Today : {today}")
-    print(f"Tmrw : {tomorrow}")
-    print(f"Later : {later}")
-
-    return {
-        "today": today,
-        "tomorrow": tomorrow,
-        "later": later,
-    }
+def create_focus_blocks(tasks):
+    deep = [t for t in tasks if t.get("type") == "Deep Task"]
+    micro = [t for t in tasks if t.get("type") == "Micro Task"]
+    other = [t for t in tasks if t.get("type") == "Other"]
+    
+    blocks = []
+    for task in deep:
+        blocks.append({"type": "Deep Task", "tasks": [task]})
+    
+    for i in range(0, len(micro), 5):
+        blocks.append({"type": "Micro Tasks", "tasks": micro[i:i+5]})
+    
+    if other:
+        blocks.append({"type": "Other", "tasks": other})
+    
+    return blocks
