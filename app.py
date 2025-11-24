@@ -85,7 +85,7 @@ with col1:
 with col2:
     st.markdown("### 📝 Transcript")
     if st.session_state.transcript:
-        st.text_area("", st.session_state.transcript, height=200, label_visibility="collapsed")
+        st.text_area("Transcript", st.session_state.transcript, height=200, label_visibility="collapsed")
         if st.button("✨ Extract Tasks"):
             with st.spinner("Extracting tasks..."):
                 try:
