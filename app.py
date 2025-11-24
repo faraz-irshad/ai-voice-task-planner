@@ -95,8 +95,7 @@ with col2:
                     
                     for task in classified:
                         task["schedule"] = schedule_task(task["priority"])
-                        task["when"] = ""
-                        task["where"] = ""
+                        task["done"] = False
                     
                     st.session_state.tasks = classified
                     
@@ -116,6 +115,16 @@ with col2:
 
 if st.session_state.tasks:
     st.markdown("---")
+    st.markdown("## ✅ To-Do List")
+    for idx, task in enumerate(st.session_state.tasks):
+        task["done"] = st.checkbox(
+            task["task"],
+            key=f"todo_{idx}",
+            value=task.get("done", False),
+        )
+    st.markdown("")
+
+    st.markdown("---")
     st.markdown("## 📋 Scheduled Tasks")
     
     for schedule in ["Today", "Tomorrow", "Later"]:
@@ -125,24 +134,51 @@ if st.session_state.tasks:
                 with st.container():
                     st.markdown(f"**{task['task']}**")
                     st.markdown(f"🏷️ {task['category']} • ⚡ {task['priority']} • 🧠 {task['type']}")
-                    
-                    col_a, col_b = st.columns(2)
-                    with col_a:
-                        when = st.text_input("When?", key=f"when_{schedule}_{idx}", value=task.get("when", ""))
-                        task["when"] = when
-                    with col_b:
-                        where = st.text_input("Where?", key=f"where_{schedule}_{idx}", value=task.get("where", ""))
-                        task["where"] = where
-                    
-                    if when or where:
-                        details = []
-                        if when:
-                            details.append(f"⏰ {when}")
-                        if where:
-                            details.append(f"📍 {where}")
-                        st.markdown(" • ".join(details))
-                    
                     st.markdown("")
+    
+    st.markdown("---")
+    st.markdown("## 🧭 Eisenhower Matrix")
+    matrix = {
+        "Urgent & Important": [],
+        "Urgent & Not Important": [],
+        "Important & Not Urgent": [],
+        "Not Urgent & Not Important": [],
+    }
+    for task in st.session_state.tasks:
+        if task.get("priority") in matrix:
+            matrix[task["priority"]].append(task)
+    
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown("### Urgent & Important")
+        if matrix["Urgent & Important"]:
+            for task in matrix["Urgent & Important"]:
+                st.markdown(f"- {task['task']} ({task['category']} • {task['type']})")
+        else:
+            st.markdown("_No tasks yet_")
+    with col_b:
+        st.markdown("### Urgent & Not Important")
+        if matrix["Urgent & Not Important"]:
+            for task in matrix["Urgent & Not Important"]:
+                st.markdown(f"- {task['task']} ({task['category']} • {task['type']})")
+        else:
+            st.markdown("_No tasks yet_")
+    
+    col_c, col_d = st.columns(2)
+    with col_c:
+        st.markdown("### Important & Not Urgent")
+        if matrix["Important & Not Urgent"]:
+            for task in matrix["Important & Not Urgent"]:
+                st.markdown(f"- {task['task']} ({task['category']} • {task['type']})")
+        else:
+            st.markdown("_No tasks yet_")
+    with col_d:
+        st.markdown("### Not Urgent & Not Important")
+        if matrix["Not Urgent & Not Important"]:
+            for task in matrix["Not Urgent & Not Important"]:
+                st.markdown(f"- {task['task']} ({task['category']} • {task['type']})")
+        else:
+            st.markdown("_No tasks yet_")
     
     st.markdown("---")
     st.markdown("## 🎯 Focus Blocks")
