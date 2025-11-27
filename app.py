@@ -10,7 +10,7 @@ from core.ai_processing import (
     GeminiQuotaError,
 )
 from core.scheduling import create_focus_blocks, schedule_task
-from core.storage import init_db, save_plan, list_plans
+from core.storage import init_db, save_plan, list_plans, create_user, authenticate_user
 
 st.set_page_config(page_title="AI Voice Task Planner", layout="wide")
 
@@ -47,6 +47,52 @@ div[data-testid="stFileUploader"] {
 """, unsafe_allow_html=True)
 
 init_db()
+
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+if st.session_state.user is None:
+    st.title("🎙️ AI Voice Task Planner")
+    st.markdown("Transform voice notes into organized, actionable tasks")
+    st.markdown("---")
+    
+    tab1, tab2 = st.tabs(["Login", "Register"])
+    
+    with tab1:
+        st.markdown("### Login")
+        login_username = st.text_input("Username", key="login_username")
+        login_password = st.text_input("Password", type="password", key="login_password")
+        if st.button("Login", key="login_button"):
+            if login_username and login_password:
+                user = authenticate_user(login_username, login_password)
+                if user:
+                    st.session_state.user = user
+                    st.rerun()
+                else:
+                    st.error("Invalid username or password")
+            else:
+                st.warning("Please enter username and password")
+    
+    with tab2:
+        st.markdown("### Register")
+        reg_username = st.text_input("Username", key="reg_username")
+        reg_password = st.text_input("Password", type="password", key="reg_password")
+        reg_password_confirm = st.text_input("Confirm Password", type="password", key="reg_password_confirm")
+        if st.button("Register", key="register_button"):
+            if reg_username and reg_password and reg_password_confirm:
+                if reg_password != reg_password_confirm:
+                    st.error("Passwords do not match")
+                else:
+                    user = create_user(reg_username, reg_password)
+                    if user:
+                        st.success("Registration successful! Please login.")
+                    else:
+                        st.error("Username already exists")
+            else:
+                st.warning("Please fill all fields")
+    st.stop()
+
+st.sidebar.markdown(f"**Logged in as:** {st.session_state.user['username']}")
 
 st.title("🎙️ AI Voice Task Planner")
 st.markdown("Transform voice notes into organized, actionable tasks")
@@ -95,7 +141,6 @@ with col2:
             label_visibility="collapsed",
             key="transcript_editor",
         )
-        # Keep session state in sync with any manual transcript edits.
         st.session_state.transcript = transcript_input
         if st.button("✨ Extract Tasks"):
             with st.spinner("Extracting tasks..."):
@@ -231,6 +276,7 @@ if st.session_state.tasks:
             st.warning("Nothing to save yet. Generate tasks and a plan first.")
         else:
             plan = save_plan(
+                st.session_state.user["id"],
                 plan_title,
                 st.session_state.transcript,
                 st.session_state.tasks,
@@ -238,11 +284,11 @@ if st.session_state.tasks:
                 st.session_state.scheduled_tasks,
                 blocks,
             )
-            st.success(f"Saved plan as “{plan.title}”.")
+            st.success(f"Saved plan as "{plan.title}".")
 
     st.markdown("## 📚 Previous Plans")
 
-    plans = list_plans(limit=5)
+    plans = list_plans(st.session_state.user["id"], limit=5)
 
     if not plans:
         st.caption("No saved plans yet.")
