@@ -284,7 +284,7 @@ if st.session_state.tasks:
                 st.session_state.scheduled_tasks,
                 blocks,
             )
-            st.success(f"Saved plan as "{plan.title}".")
+            st.success(f'Saved plan as "{plan.title}".')
 
     st.markdown("## 📚 Previous Plans")
 

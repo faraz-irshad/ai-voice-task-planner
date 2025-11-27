@@ -30,6 +30,17 @@ class Plan(SQLModel, table=True):
 
 def init_db():
     SQLModel.metadata.create_all(engine)
+    _run_migrations()
+
+
+def _run_migrations():
+    """Lightweight, in-app migrations to keep SQLite schema aligned."""
+    with engine.begin() as conn:
+        columns = conn.exec_driver_sql("PRAGMA table_info('plan')").fetchall()
+        column_names = {col[1] for col in columns}
+        if "user_id" not in column_names:
+            conn.exec_driver_sql('ALTER TABLE "plan" ADD COLUMN user_id INTEGER')
+            conn.exec_driver_sql('UPDATE "plan" SET user_id = 1 WHERE user_id IS NULL')
 
 
 def get_session():
