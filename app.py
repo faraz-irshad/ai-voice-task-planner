@@ -1,3 +1,4 @@
+import json
 import streamlit as st
 
 from core.ai_processing import (
@@ -9,6 +10,7 @@ from core.ai_processing import (
     GeminiQuotaError,
 )
 from core.scheduling import create_focus_blocks, schedule_task
+from core.storage import init_db, save_plan, list_plans
 
 st.set_page_config(page_title="AI Voice Task Planner", layout="wide")
 
@@ -44,6 +46,8 @@ div[data-testid="stFileUploader"] {
 </style>
 """, unsafe_allow_html=True)
 
+init_db()
+
 st.title("🎙️ AI Voice Task Planner")
 st.markdown("Transform voice notes into organized, actionable tasks")
 
@@ -64,7 +68,6 @@ with col1:
         label_visibility="collapsed",
     )
 
-    
     if audio_file:
         st.audio(audio_file)
         if st.button("🎯 Transcribe Audio"):
@@ -79,7 +82,7 @@ with col1:
                     st.error(str(exc))
                 except GeminiClientError as exc:
                     st.error(f"Transcription failed: {exc}")
-                except Exception as exc:  # pragma: no cover - defensive
+                except Exception as exc:
                     st.error(f"Unexpected transcription error: {exc}")
 
 with col2:
@@ -92,13 +95,13 @@ with col2:
                     raw_tasks = extract_tasks(st.session_state.transcript)
                     categorized = categorize_and_prioritize(raw_tasks)
                     classified = classify_cognitive_load(categorized)
-                    
+
                     for task in classified:
                         task["schedule"] = schedule_task(task["priority"])
                         task["done"] = False
-                    
+
                     st.session_state.tasks = classified
-                    
+
                     scheduled = {"Today": [], "Tomorrow": [], "Later": []}
                     for task in classified:
                         scheduled[task["schedule"]].append(task)
@@ -108,7 +111,7 @@ with col2:
                     st.error(str(exc))
                 except GeminiClientError as exc:
                     st.error(f"Task extraction failed: {exc}")
-                except Exception as exc:  # pragma: no cover - defensive
+                except Exception as exc:
                     st.error(f"Unexpected task extraction error: {exc}")
     else:
         st.info("Upload and transcribe audio to see transcript")
@@ -126,7 +129,7 @@ if st.session_state.tasks:
 
     st.markdown("---")
     st.markdown("## 📋 Scheduled Tasks")
-    
+
     for schedule in ["Today", "Tomorrow", "Later"]:
         if st.session_state.scheduled_tasks[schedule]:
             st.markdown(f"### {schedule}")
@@ -135,7 +138,7 @@ if st.session_state.tasks:
                     st.markdown(f"**{task['task']}**")
                     st.markdown(f"🏷️ {task['category']} • ⚡ {task['priority']} • 🧠 {task['type']}")
                     st.markdown("")
-    
+
     st.markdown("---")
     st.markdown("## 🧭 Eisenhower Matrix")
     matrix = {
@@ -147,7 +150,7 @@ if st.session_state.tasks:
     for task in st.session_state.tasks:
         if task.get("priority") in matrix:
             matrix[task["priority"]].append(task)
-    
+
     col_a, col_b = st.columns(2)
     with col_a:
         st.markdown("### Urgent & Important")
@@ -163,7 +166,7 @@ if st.session_state.tasks:
                 st.markdown(f"- {task['task']} ({task['category']} • {task['type']})")
         else:
             st.markdown("_No tasks yet_")
-    
+
     col_c, col_d = st.columns(2)
     with col_c:
         st.markdown("### Important & Not Urgent")
@@ -179,13 +182,55 @@ if st.session_state.tasks:
                 st.markdown(f"- {task['task']} ({task['category']} • {task['type']})")
         else:
             st.markdown("_No tasks yet_")
-    
+
     st.markdown("---")
     st.markdown("## 🎯 Focus Blocks")
-    
+
     blocks = create_focus_blocks(st.session_state.tasks)
     for block in blocks:
         st.markdown(f"### {block['type']}")
         for task in block["tasks"]:
             st.markdown(f"- {task['task']}")
         st.markdown("")
+
+    st.markdown("---")
+    st.markdown("## 💾 Save Plan")
+
+    plan_title = st.text_input("Plan title (optional)")
+
+    if st.button("Save this plan"):
+        if not st.session_state.tasks:
+            st.warning("Nothing to save yet. Generate tasks and a plan first.")
+        else:
+            plan = save_plan(
+                plan_title,
+                st.session_state.transcript,
+                st.session_state.tasks,
+                st.session_state.tasks,
+                st.session_state.scheduled_tasks,
+                blocks,
+            )
+            st.success(f"Saved plan as “{plan.title}”.")
+
+    st.markdown("## 📚 Previous Plans")
+
+    plans = list_plans(limit=5)
+
+    if not plans:
+        st.caption("No saved plans yet.")
+    else:
+        for p in plans:
+            if st.button(
+                f"{p.title} – {p.created_at.strftime('%Y-%m-%d %H:%M')}",
+                key=f"plan_{p.id}",
+            ):
+                tasks = json.loads(p.tasks_json)
+                prioritized = json.loads(p.prioritized_json)
+                schedule = json.loads(p.schedule_json)
+                loaded_blocks = json.loads(p.blocks_json)
+
+                st.session_state.transcript = p.transcript
+                st.session_state.tasks = tasks
+                st.session_state.scheduled_tasks = schedule
+                st.session_state.blocks = loaded_blocks if isinstance(loaded_blocks, dict) else {}
+                st.rerun()
