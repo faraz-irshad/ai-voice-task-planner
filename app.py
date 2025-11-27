@@ -88,7 +88,15 @@ with col1:
 with col2:
     st.markdown("### 📝 Transcript")
     if st.session_state.transcript:
-        st.text_area("Transcript", st.session_state.transcript, height=200, label_visibility="collapsed")
+        transcript_input = st.text_area(
+            "Transcript",
+            value=st.session_state.transcript,
+            height=200,
+            label_visibility="collapsed",
+            key="transcript_editor",
+        )
+        # Keep session state in sync with any manual transcript edits.
+        st.session_state.transcript = transcript_input
         if st.button("✨ Extract Tasks"):
             with st.spinner("Extracting tasks..."):
                 try:
@@ -136,7 +144,11 @@ if st.session_state.tasks:
             for idx, task in enumerate(st.session_state.scheduled_tasks[schedule]):
                 with st.container():
                     st.markdown(f"**{task['task']}**")
-                    st.markdown(f"🏷️ {task['category']} • ⚡ {task['priority']} • 🧠 {task['type']}")
+                    st.markdown(
+                        f"🏷️ {task.get('category', 'Uncategorized')} • "
+                        f"⚡ {task.get('priority', 'Unprioritized')} • "
+                        f"🧠 {task.get('type', 'Unclassified')}"
+                    )
                     st.markdown("")
 
     st.markdown("---")
@@ -156,14 +168,22 @@ if st.session_state.tasks:
         st.markdown("### Urgent & Important")
         if matrix["Urgent & Important"]:
             for task in matrix["Urgent & Important"]:
-                st.markdown(f"- {task['task']} ({task['category']} • {task['type']})")
+                st.markdown(
+                    f"- {task['task']} ("
+                    f"{task.get('category', 'Uncategorized')} • "
+                    f"{task.get('type', 'Unclassified')})"
+                )
         else:
             st.markdown("_No tasks yet_")
     with col_b:
         st.markdown("### Urgent & Not Important")
         if matrix["Urgent & Not Important"]:
             for task in matrix["Urgent & Not Important"]:
-                st.markdown(f"- {task['task']} ({task['category']} • {task['type']})")
+                st.markdown(
+                    f"- {task['task']} ("
+                    f"{task.get('category', 'Uncategorized')} • "
+                    f"{task.get('type', 'Unclassified')})"
+                )
         else:
             st.markdown("_No tasks yet_")
 
@@ -172,14 +192,22 @@ if st.session_state.tasks:
         st.markdown("### Important & Not Urgent")
         if matrix["Important & Not Urgent"]:
             for task in matrix["Important & Not Urgent"]:
-                st.markdown(f"- {task['task']} ({task['category']} • {task['type']})")
+                st.markdown(
+                    f"- {task['task']} ("
+                    f"{task.get('category', 'Uncategorized')} • "
+                    f"{task.get('type', 'Unclassified')})"
+                )
         else:
             st.markdown("_No tasks yet_")
     with col_d:
         st.markdown("### Not Urgent & Not Important")
         if matrix["Not Urgent & Not Important"]:
             for task in matrix["Not Urgent & Not Important"]:
-                st.markdown(f"- {task['task']} ({task['category']} • {task['type']})")
+                st.markdown(
+                    f"- {task['task']} ("
+                    f"{task.get('category', 'Uncategorized')} • "
+                    f"{task.get('type', 'Unclassified')})"
+                )
         else:
             st.markdown("_No tasks yet_")
 

@@ -94,4 +94,7 @@ Tasks:
                     if task["task"] == parts[0]:
                         task["type"] = parts[1]
                         break
+    for task in tasks:
+        # Ensure every task has a type even if the model response didn't map perfectly.
+        task.setdefault("type", "Other")
     return tasks
