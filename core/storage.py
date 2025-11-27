@@ -9,6 +9,9 @@ import json
 DB_URL = os.getenv("DB_URL", "sqlite:///planner.db")
 engine = create_engine(DB_URL, echo=False, connect_args={"check_same_thread": False})
 
+# Streamlit reloads can keep old metadata around; clear to avoid duplicate table errors.
+SQLModel.metadata.clear()
+
 
 class UserAccount(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

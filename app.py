@@ -103,6 +103,8 @@ if "tasks" not in st.session_state:
     st.session_state.tasks = []
 if "scheduled_tasks" not in st.session_state:
     st.session_state.scheduled_tasks = {}
+if "blocks" not in st.session_state:
+    st.session_state.blocks = []
 
 col1, col2 = st.columns(2)
 
@@ -132,17 +134,22 @@ with col1:
                     st.error(f"Unexpected transcription error: {exc}")
 
 with col2:
-    st.markdown("### 📝 Transcript")
-    if st.session_state.transcript:
-        transcript_input = st.text_area(
-            "Transcript",
-            value=st.session_state.transcript,
-            height=200,
-            label_visibility="collapsed",
-            key="transcript_editor",
-        )
-        st.session_state.transcript = transcript_input
-        if st.button("✨ Extract Tasks"):
+    st.markdown("### 📝 Transcript or Text Input")
+    transcript_input = st.text_area(
+        "Transcript",
+        value=st.session_state.transcript,
+        height=200,
+        label_visibility="collapsed",
+        placeholder="Paste or type notes here, or transcribe audio on the left.",
+        key="transcript_editor",
+    )
+    # Keep session state in sync with any manual transcript edits.
+    st.session_state.transcript = transcript_input
+
+    if st.button("✨ Extract Tasks"):
+        if not st.session_state.transcript.strip():
+            st.warning("Add some text first, or transcribe audio.")
+        else:
             with st.spinner("Extracting tasks..."):
                 try:
                     raw_tasks = extract_tasks(st.session_state.transcript)
@@ -166,8 +173,6 @@ with col2:
                     st.error(f"Task extraction failed: {exc}")
                 except Exception as exc:
                     st.error(f"Unexpected task extraction error: {exc}")
-    else:
-        st.info("Upload and transcribe audio to see transcript")
 
 if st.session_state.tasks:
     st.markdown("---")
@@ -286,25 +291,26 @@ if st.session_state.tasks:
             )
             st.success(f'Saved plan as "{plan.title}".')
 
-    st.markdown("## 📚 Previous Plans")
+st.markdown("---")
+st.markdown("## 📚 Previous Plans")
 
-    plans = list_plans(st.session_state.user["id"], limit=5)
+plans = list_plans(st.session_state.user["id"], limit=5)
 
-    if not plans:
-        st.caption("No saved plans yet.")
-    else:
-        for p in plans:
-            if st.button(
-                f"{p.title} – {p.created_at.strftime('%Y-%m-%d %H:%M')}",
-                key=f"plan_{p.id}",
-            ):
-                tasks = json.loads(p.tasks_json)
-                prioritized = json.loads(p.prioritized_json)
-                schedule = json.loads(p.schedule_json)
-                loaded_blocks = json.loads(p.blocks_json)
+if not plans:
+    st.caption("No saved plans yet.")
+else:
+    for p in plans:
+        if st.button(
+            f"{p.title} – {p.created_at.strftime('%Y-%m-%d %H:%M')}",
+            key=f"plan_{p.id}",
+        ):
+            tasks = json.loads(p.tasks_json)
+            prioritized = json.loads(p.prioritized_json)
+            schedule = json.loads(p.schedule_json)
+            loaded_blocks = json.loads(p.blocks_json)
 
-                st.session_state.transcript = p.transcript
-                st.session_state.tasks = tasks
-                st.session_state.scheduled_tasks = schedule
-                st.session_state.blocks = loaded_blocks if isinstance(loaded_blocks, dict) else {}
-                st.rerun()
+            st.session_state.transcript = p.transcript
+            st.session_state.tasks = tasks
+            st.session_state.scheduled_tasks = schedule
+            st.session_state.blocks = loaded_blocks if isinstance(loaded_blocks, dict) else {}
+            st.rerun()
