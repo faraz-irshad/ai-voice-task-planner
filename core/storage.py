@@ -100,13 +100,20 @@ def save_plan(
         blocks_json=json.dumps(blocks),
     )
     with get_session() as session:
-        session.add(plan)
-        session.commit()
-        session.refresh(plan)
-        return plan
+        try:
+            session.add(plan)
+            session.commit()
+            session.refresh(plan)
+            return plan
+        except Exception as exc:
+            session.rollback()
+            raise RuntimeError(f"Failed to save plan: {exc}") from exc
 
 
 def list_plans(user_id: int, limit: int = 5) -> List[Plan]:
     with get_session() as session:
-        statement = select(Plan).where(Plan.user_id == user_id).order_by(Plan.created_at.desc()).limit(limit)
-        return list(session.exec(statement))
+        try:
+            statement = select(Plan).where(Plan.user_id == user_id).order_by(Plan.created_at.desc()).limit(limit)
+            return list(session.exec(statement))
+        except Exception as exc:
+            raise RuntimeError(f"Failed to load plans: {exc}") from exc
