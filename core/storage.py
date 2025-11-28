@@ -46,6 +46,11 @@ def _run_migrations():
         if "user_id" not in column_names:
             conn.exec_driver_sql('ALTER TABLE "plan" ADD COLUMN user_id INTEGER')
             conn.exec_driver_sql('UPDATE "plan" SET user_id = 1 WHERE user_id IS NULL')
+        user_columns = conn.exec_driver_sql("PRAGMA table_info('useraccount')").fetchall()
+        user_column_names = {col[1] for col in user_columns}
+        if "created_at" not in user_column_names:
+            conn.exec_driver_sql('ALTER TABLE "useraccount" ADD COLUMN created_at TIMESTAMP')
+            conn.exec_driver_sql('UPDATE "useraccount" SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL')
 
 
 def get_session():
