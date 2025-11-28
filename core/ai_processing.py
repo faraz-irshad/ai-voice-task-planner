@@ -65,10 +65,26 @@ Tasks:
     response = _call_model(model, prompt)
     results = []
     for line in response.text.strip().split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        category = "Other"
+        priority = "Not Urgent & Not Important"
+        task = None
         if "||" in line:
             parts = [p.strip() for p in line.split("||")]
             if len(parts) == 3:
-                results.append({"task": parts[0], "category": parts[1], "priority": parts[2]})
+                task, category, priority = parts
+            else:
+                task = parts[0] if parts and parts[0] else None
+        else:
+            task = line
+        if task:
+            results.append({"task": task, "category": category, "priority": priority})
+    existing_tasks = {r["task"] for r in results}
+    for original in tasks:
+        if original not in existing_tasks:
+            results.append({"task": original, "category": "Other", "priority": "Not Urgent & Not Important"})
     return results
 
 
