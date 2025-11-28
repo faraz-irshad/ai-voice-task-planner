@@ -48,6 +48,31 @@ div[data-testid="stFileUploader"] {
 
 init_db()
 
+def get_demo_plan():
+    demo_transcript = (
+        "Quick recap: finalize the proposal deck for the client review tomorrow, send them a timeline update, "
+        "study data structures for the interview prep, pick up prescriptions and groceries on the way home, "
+        "book a dentist appointment for next month, and prep a 20-minute cardio session tonight."
+    )
+    base_tasks = [
+        {"task": "Finalize proposal deck for client review", "category": "Work", "priority": "Urgent & Important", "type": "Deep Task"},
+        {"task": "Email client with updated project timeline", "category": "Work", "priority": "Urgent & Not Important", "type": "Micro Task"},
+        {"task": "Study data structures for interview prep", "category": "Study", "priority": "Important & Not Urgent", "type": "Deep Task"},
+        {"task": "Pick up prescriptions and groceries", "category": "Errand", "priority": "Urgent & Not Important", "type": "Micro Task"},
+        {"task": "Book dentist appointment for next month", "category": "Health", "priority": "Important & Not Urgent", "type": "Micro Task"},
+        {"task": "Plan meals for the week and grocery list", "category": "Personal", "priority": "Not Urgent & Not Important", "type": "Other"},
+    ]
+    tasks = []
+    scheduled = {"Today": [], "Tomorrow": [], "Later": []}
+    for t in base_tasks:
+        task = dict(t)
+        task["schedule"] = schedule_task(task["priority"])
+        task["done"] = False
+        tasks.append(task)
+        scheduled[task["schedule"]].append(task)
+    blocks = create_focus_blocks(tasks)
+    return demo_transcript, tasks, scheduled, blocks
+
 if "user" not in st.session_state:
     st.session_state.user = None
 
@@ -135,6 +160,13 @@ with col1:
 
 with col2:
     st.markdown("### 📝 Transcript or Text Input")
+    if st.button("Load Demo Plan", key="load_demo_plan"):
+        demo_transcript, demo_tasks, demo_scheduled, demo_blocks = get_demo_plan()
+        st.session_state.transcript = demo_transcript
+        st.session_state.tasks = demo_tasks
+        st.session_state.scheduled_tasks = demo_scheduled
+        st.session_state.blocks = demo_blocks
+        st.rerun()
     transcript_input = st.text_area(
         "Transcript",
         value=st.session_state.transcript,
