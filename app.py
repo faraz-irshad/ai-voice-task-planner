@@ -339,13 +339,19 @@ else:
             f"{p.title} – {p.created_at.strftime('%Y-%m-%d %H:%M')}",
             key=f"plan_{p.id}",
         ):
-            tasks = json.loads(p.tasks_json)
-            prioritized = json.loads(p.prioritized_json)
-            schedule = json.loads(p.schedule_json)
-            loaded_blocks = json.loads(p.blocks_json)
-
-            st.session_state.transcript = p.transcript
-            st.session_state.tasks = tasks
-            st.session_state.scheduled_tasks = schedule
-            st.session_state.blocks = loaded_blocks if isinstance(loaded_blocks, dict) else {}
-            st.rerun()
+            try:
+                tasks = json.loads(p.tasks_json)
+                prioritized = json.loads(p.prioritized_json)
+                schedule = json.loads(p.schedule_json)
+                loaded_blocks = json.loads(p.blocks_json)
+            except Exception:
+                st.error("Unable to load this saved plan; the stored data is corrupted.")
+            else:
+                if not isinstance(tasks, list) or not isinstance(schedule, dict) or not isinstance(loaded_blocks, list):
+                    st.error("Unable to load this saved plan; the stored data is corrupted.")
+                else:
+                    st.session_state.transcript = p.transcript
+                    st.session_state.tasks = tasks
+                    st.session_state.scheduled_tasks = schedule
+                    st.session_state.blocks = loaded_blocks
+                    st.rerun()
