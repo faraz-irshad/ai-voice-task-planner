@@ -185,20 +185,23 @@ with col2:
             with st.spinner("Extracting tasks..."):
                 try:
                     raw_tasks = extract_tasks(st.session_state.transcript)
-                    categorized = categorize_and_prioritize(raw_tasks)
-                    classified = classify_cognitive_load(categorized)
+                    if not raw_tasks:
+                        st.warning("No actionable tasks detected. Try adding more concrete actions or clearer phrasing.")
+                    else:
+                        categorized = categorize_and_prioritize(raw_tasks)
+                        classified = classify_cognitive_load(categorized)
 
-                    for task in classified:
-                        task["schedule"] = schedule_task(task["priority"])
-                        task["done"] = False
+                        for task in classified:
+                            task["schedule"] = schedule_task(task["priority"])
+                            task["done"] = False
 
-                    st.session_state.tasks = classified
+                        st.session_state.tasks = classified
 
-                    scheduled = {"Today": [], "Tomorrow": [], "Later": []}
-                    for task in classified:
-                        scheduled[task["schedule"]].append(task)
-                    st.session_state.scheduled_tasks = scheduled
-                    st.rerun()
+                        scheduled = {"Today": [], "Tomorrow": [], "Later": []}
+                        for task in classified:
+                            scheduled[task["schedule"]].append(task)
+                        st.session_state.scheduled_tasks = scheduled
+                        st.rerun()
                 except GeminiQuotaError as exc:
                     st.error(str(exc))
                 except GeminiClientError as exc:
