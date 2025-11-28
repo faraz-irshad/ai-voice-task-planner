@@ -5,6 +5,7 @@ import hashlib
 
 from sqlmodel import SQLModel, Field, create_engine, Session, select
 import json
+from sqlalchemy.exc import IntegrityError
 
 DB_URL = os.getenv("DB_URL", "sqlite:///planner.db")
 engine = create_engine(DB_URL, echo=False, connect_args={"check_same_thread": False})
@@ -17,6 +18,7 @@ class UserAccount(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(unique=True, index=True)
     password_hash: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class Plan(SQLModel, table=True):
@@ -59,8 +61,12 @@ def create_user(username: str, password: str) -> Optional[dict]:
             session.commit()
             session.refresh(user)
             return {"id": user.id, "username": user.username}
-        except:
-            return None
+        except IntegrityError as exc:
+            session.rollback()
+            raise ValueError("Username already taken") from exc
+        except Exception as exc:
+            session.rollback()
+            raise RuntimeError(f"Failed to create user: {exc}") from exc
 
 
 def authenticate_user(username: str, password: str) -> Optional[dict]:
